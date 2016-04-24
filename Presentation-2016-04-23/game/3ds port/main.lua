@@ -1,0 +1,197 @@
+local game = {};
+local Actor = { box = {0,0,1,1}, vector = {0, 0}};
+
+function Actor:new(box, vector)
+   local o = {};
+   o.box = box;
+   o.vector = vector;
+   setmetatable(o, self)
+   self.__index = self;
+   return o;
+end
+
+local beep = function( tone )
+   local soundData = love.sound.newSoundData(1000,1000,8,1)
+   local sample = 0.1;
+   for i=1,125 do
+       if i % tone == 0 then
+	  sample=sample*-1;
+       end
+        soundData:setSample(i, sample)
+    end
+    love.audio.play(love.audio.newSource(soundData))
+end
+
+local Paddle = Actor:new();
+local Ball = Actor:new();
+function Actor:move(dt)
+   for i,v in pairs(self.vector) do
+      self.box[i]=self.box[i]+v*dt;
+   end
+end
+
+function Actor:is_colliding_x(dt, actor)
+   return self.box[1]+self.vector[1]*dt<actor.box[1]+actor.box[3] and
+      actor.box[1]<self.box[1]+self.vector[1]*dt+self.box[3];
+end
+
+function Actor:is_colliding_y(dt, actor)
+   return self.box[2]+self.vector[2]*dt<actor.box[2]+actor.box[4] and
+      actor.box[2]<self.box[2]+self.vector[2]*dt+self.box[4];
+end
+
+function Actor:draw( width, height)
+   love.graphics.rectangle("fill", self.box[1]*width, self.box[2]*height, self.box[3]*width, self.box[4]*height);
+end
+
+function Paddle:update(dt, screen)
+   self.vector[2] = 0;
+   if love.keyboard.isDown(self.upkey) then
+      self.vector[2] = -1;
+   elseif love.keyboard.isDown(self.downkey) then
+      self.vector[2] = 1;
+   end
+   if not self:is_colliding_y(dt, screen ) then
+      self.vector[2] = 0;
+   end
+   self:move(dt);
+end
+
+function Paddle:setkeys( up, down)
+   self.upkey = up;
+   self.downkey = down;
+end
+
+function Ball:update(dt, screen, paddles, game)
+   if not self:is_colliding_y( dt, screen ) then
+      self.vector[2] = self.vector[2] *-1;
+--      beep(1);
+   end
+   if self.vector[1] < 0.5 and self.vector[1] > -0.5 then
+      self.vector[1] = self.vector[1]*2;
+   end
+   if self:is_colliding_x(dt,paddles[self.vector[1] > 0 and 1 or 2]) and self:is_colliding_y(dt,paddles[self.vector[1] > 0 and 1 or 2]) then
+      self.vector[1] = self.vector[1] *math.random()*-1
+      self.vector[2] = math.random()*-2+1;
+--      beep(2);
+   end
+   if not self:is_colliding_x(dt, screen ) then
+      game.winner = self.vector[1] > 0 and 1 or 2;
+--      beep(4);
+   end
+   self:move(dt);
+end
+
+function game.reset()
+   game.actors = {}
+   table.insert(game.actors,Ball:new({game.screen.box[3]/2,game.screen.box[4]/2,1,1},{math.random()*-2+1,math.random()*-2+1}));
+   table.insert(game.actors,Paddle:new({0,0,1,2},{0,0}));
+   game.actors[2]:setkeys("up","down");
+   table.insert(game.actors,Paddle:new({game.screen.box[3]-1,game.screen.box[4]-2,1,2},{0,0}));
+   game.actors[3]:setkeys("x","b");
+end
+
+function love.load()
+   game.screen = { box = {0,0,48,36}};
+   game.score = {0,0}
+   game.reset();
+   game.winner = 0;
+   game.graphics = {};
+   game.graphics['0']=
+     {{1,1,1},
+      {1,0,1},
+      {1,0,1},
+      {1,0,1},
+      {1,1,1}};
+   game.graphics['1']=
+     {{0,0,1},
+      {0,0,1},
+      {0,0,1},
+      {0,0,1},
+      {0,0,1}};
+   game.graphics['2']=
+     {{1,1,1},
+      {0,0,1},
+      {1,1,1},
+      {1,0,0},
+      {1,1,1}};
+   game.graphics['3']=
+     {{1,1,1},
+      {0,0,1},
+      {1,1,1},
+      {0,0,1},
+      {1,1,1}};
+   game.graphics['4']=
+     {{1,0,1},
+      {1,0,1},
+      {1,1,1},
+      {0,0,1},
+      {0,0,1}};
+   game.graphics['5']=
+     {{1,1,1},
+      {1,0,0},
+      {1,1,1},
+      {0,0,1},
+      {1,1,1}};
+   game.graphics['6']=
+     {{1,1,1},
+      {1,0,0},
+      {1,1,1},
+      {1,0,1},
+      {1,1,1}};
+   game.graphics['7']=
+     {{1,1,1},
+      {0,0,1},
+      {0,0,1},
+      {0,0,1},
+      {0,0,1}};
+   game.graphics['8']=
+     {{1,1,1},
+      {1,0,1},
+      {1,1,1},
+      {1,0,1},
+      {1,1,1}};
+   game.graphics['9']=
+     {{1,1,1},
+      {1,0,1},
+      {1,1,1},
+      {0,0,1},
+      {1,1,1}};
+end
+
+function love.update(dt)
+   dt=dt*20
+   for i,actor in ipairs(game.actors) do
+      actor:update(dt, game.screen, {game.actors[3],game.actors[2]}, game)
+   end
+   if game.winner ~= 0 then
+      game.reset();
+      game.score[game.winner] = game.score[game.winner]+1;
+      game.winner = 0;
+   end
+end
+
+function love.draw()
+   love.graphics.setScreen("top")
+   local width,height = 400/game.screen.box[3],240/game.screen.box[4];
+   for i,actor in ipairs(game.actors) do
+      actor:draw(width,height);
+   end
+   for i=0,game.screen.box[4],2 do
+      love.graphics.rectangle("fill",(game.screen.box[3]/2)*width,i*height,1*width,1*height);
+   end
+   love.graphics.setScreen("bottom")
+   for p,score in ipairs(game.score)  do
+      local offset = -3+(2*p)
+
+      for d=1,string.len( score) do
+	 for y,t in ipairs(game.graphics[string.sub( game.score[p], offset*d, offset*d)]) do
+	    for x,b in ipairs(t) do
+	       if b  == 1 then
+		  love.graphics.rectangle("fill",(offset*4*d+game.screen.box[3]/2+x-2)*(300/game.screen.box[3])-1,y*height-1,1*(300/game.screen.box[3])+1,1*height+1);
+	       end
+	    end
+	 end
+      end
+   end
+end
